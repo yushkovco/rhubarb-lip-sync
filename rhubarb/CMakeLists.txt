@@ -509,6 +509,17 @@ target_link_libraries(rhubarb
 )
 target_compile_options(rhubarb PUBLIC ${enableWarningsFlags})
 
+# Define CLI tools
+add_executable(extract-mfcc
+	src/cli-tools/extract-mfcc/main.cpp
+)
+target_link_libraries(extract-mfcc
+	rhubarb-audio
+	pocketSphinx
+)
+target_compile_options(extract-mfcc PUBLIC ${enableWarningsFlags})
+set_target_properties(extract-mfcc PROPERTIES FOLDER cli-tools)
+
 # Define test project
 #include_directories("${gtest_SOURCE_DIR}/include")
 set(TEST_FILES
