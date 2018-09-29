@@ -32,52 +32,58 @@ static_assert(
 	"Unexpected std::array implementation."
 );
 
-int main() {
-	const auto audioFile = createAudioFileClip("C:\\Users\\Daniel\\Desktop\\av\\misc\\smearing-fruit.wav");
+int main(int argc, char* argv[]) {
+	try {
+		if (argc != 2) throw std::runtime_error("File name must be specified as single argument.");
+		const auto audioFile = createAudioFileClip(argv[1]);
 
-	err_set_logfp(nullptr);
-	const arg_t parameterDefinitions[] = {
-		waveform_to_cepstral_command_line_macro(),
-		CMDLN_EMPTY_OPTION
-	};
-	cmd_ln_t* config = cmd_ln_init(
-		nullptr, parameterDefinitions, true,
-		// Disable VAD -- we're doing that ourselves
-		"-remove_silence", "no",
-		nullptr);
-	if (!config) throw std::runtime_error("Error initializing configuration.");
-	fe_t* fe = fe_init_auto_r(config);
-	
-	fe_start_stream(fe);
-	fe_start_utt(fe);
-	std::vector<Mfc> mfcs(100 * audioFile->size() / audioFile->getSampleRate());
-	std::vector<mfcc_t*> mfcPointers(mfcs.size());
-	for (int i = 0; i < mfcs.size(); ++i) {
-		mfcPointers[i] = reinterpret_cast<mfcc_t*>(&mfcs[i]);
-	}
-	NullProgressSink progressSink;
-	int writtenMfcCount = 0;
-	process16bitAudioClip(*audioFile, [&](const std::vector<int16_t>& samples) {
-		auto samplePointer = samples.data();
-		size_t sampleCount = samples.size();
-		int mfcCount = mfcs.size() - writtenMfcCount; // Variable has double purpose -- see fe_process_frames
-		if (fe_process_frames(fe, &samplePointer, &sampleCount, &mfcPointers[writtenMfcCount], &mfcCount, nullptr)) {
-			throw std::runtime_error("Error processing frames.");
+		err_set_logfp(nullptr);
+		const arg_t parameterDefinitions[] = {
+			waveform_to_cepstral_command_line_macro(),
+			CMDLN_EMPTY_OPTION
+		};
+		cmd_ln_t* config = cmd_ln_init(
+			nullptr, parameterDefinitions, true,
+			// Disable VAD -- we're doing that ourselves
+			"-remove_silence", "no",
+			nullptr);
+		if (!config) throw std::runtime_error("Error initializing configuration.");
+		fe_t* fe = fe_init_auto_r(config);
+
+		fe_start_stream(fe);
+		fe_start_utt(fe);
+		std::vector<Mfc> mfcs(100 * audioFile->size() / audioFile->getSampleRate());
+		std::vector<mfcc_t*> mfcPointers(mfcs.size());
+		for (int i = 0; i < mfcs.size(); ++i) {
+			mfcPointers[i] = reinterpret_cast<mfcc_t*>(&mfcs[i]);
 		}
-		writtenMfcCount += mfcCount;
-	}, progressSink);
-	if (writtenMfcCount < mfcs.size()) {
-		int _;
-		if (fe_end_utt(fe, mfcPointers[writtenMfcCount], &_)) throw std::runtime_error("Error ending utterance.");
-	}
-
-	fe_free(fe);
-	cmd_ln_free_r(config);
-
-	for (const Mfc& mfc : mfcs) {
-		for (const Mfcc mfcc : mfc) {
-			std::cout << mfcc << '\t';
+		NullProgressSink progressSink;
+		int writtenMfcCount = 0;
+		process16bitAudioClip(*audioFile, [&](const std::vector<int16_t>& samples) {
+			auto samplePointer = samples.data();
+			size_t sampleCount = samples.size();
+			int mfcCount = mfcs.size() - writtenMfcCount; // Variable has double purpose -- see fe_process_frames
+			if (mfcCount == 0) return;
+			if (fe_process_frames(fe, &samplePointer, &sampleCount, &mfcPointers[writtenMfcCount], &mfcCount, nullptr)) {
+				throw std::runtime_error("Error processing frames.");
+			}
+			writtenMfcCount += mfcCount;
+		}, progressSink);
+		if (writtenMfcCount < mfcs.size()) {
+			int _;
+			if (fe_end_utt(fe, mfcPointers[writtenMfcCount], &_)) throw std::runtime_error("Error ending utterance.");
 		}
-		std::cout << std::endl;
+
+		fe_free(fe);
+		cmd_ln_free_r(config);
+
+		for (const Mfc& mfc : mfcs) {
+			for (const Mfcc mfcc : mfc) {
+				std::cout << mfcc << '\t';
+			}
+			std::cout << std::endl;
+		}
+	} catch (const std::exception& exception) {
+		std::cerr << "Fatal error: " << exception.what() << std::endl;
 	}
 }
