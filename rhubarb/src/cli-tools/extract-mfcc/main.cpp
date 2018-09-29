@@ -3,6 +3,8 @@
 #include <array>
 #include "audio/audioFileReading.h"
 #include "audio/processing.h"
+#include "audio/DcOffset.h"
+#include "audio/SampleRateConverter.h"
 
 extern "C" {
 #include <pocketsphinx.h>
@@ -35,7 +37,7 @@ static_assert(
 int main(int argc, char* argv[]) {
 	try {
 		if (argc != 2) throw std::runtime_error("File name must be specified as single argument.");
-		const auto audioFile = createAudioFileClip(argv[1]);
+		const auto audioFile = createAudioFileClip(argv[1]) | resample(16000) | removeDcOffset();;
 
 		err_set_logfp(nullptr);
 		const arg_t parameterDefinitions[] = {
