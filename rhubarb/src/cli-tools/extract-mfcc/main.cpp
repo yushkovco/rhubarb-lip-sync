@@ -2,6 +2,7 @@
 #include "audio/audioFileReading.h"
 #include "audio/processing.h"
 #include "audio/DcOffset.h"
+#include "audio/Offset.h"
 #include "audio/SampleRateConverter.h"
 
 extern "C" {
@@ -12,22 +13,21 @@ extern "C" {
 #include "cmdln_macro.h"
 }
 
-// Make sure PocketSphinx is configured as expected
-static_assert(
-	std::is_same<mfcc_t, float>::value,
-	"Expected mfcc_t to be float. Check FIXED_POINT preprocessor variable."
-);
 typedef float Mfcc;
 constexpr int mfcSize = 13;
-static_assert(
-	DEFAULT_NUM_CEPSTRA == mfcSize,
-	"Unexpected DEFAULT_NUM_CEPSTRA value."
-);
 typedef std::array<Mfcc, mfcSize> Mfc;
-static_assert(
-	sizeof(Mfc) == mfcSize * sizeof(float),
-	"Unexpected std::array implementation."
-);
+
+// Make sure PocketSphinx is configured as expected
+static_assert(std::is_same<mfcc_t, float>::value,
+	"Expected mfcc_t to be float. Check FIXED_POINT preprocessor variable.");
+static_assert(DEFAULT_SAMPLING_RATE == 16000,
+	"Unexpected DEFAULT_SAMPLING_RATE value.");
+static_assert(DEFAULT_FRAME_RATE == 100,
+	"Unexpected DEFAULT_FRAME_RATE value.");
+static_assert(DEFAULT_NUM_CEPSTRA == mfcSize,
+	"Unexpected DEFAULT_NUM_CEPSTRA value.");
+static_assert(sizeof(Mfc) == mfcSize * sizeof(float),
+	"Unexpected std::array implementation.");
 
 int main(int argc, char* argv[]) {
 	try {
@@ -35,7 +35,14 @@ int main(int argc, char* argv[]) {
 			throw std::runtime_error("File name must be specified as single argument.");
 		}
 
-		const auto audioFile = createAudioFileClip(argv[1]) | resample(16000) | removeDcOffset();;
+		// Shift the audio so that MFCCs are aligned with frames
+		const int offset =
+			(std::lround(DEFAULT_WINDOW_LENGTH * DEFAULT_SAMPLING_RATE) - DEFAULT_FRAME_SHIFT) / 2;
+
+		const auto audioFile = createAudioFileClip(argv[1])
+			| resample(DEFAULT_SAMPLING_RATE)
+			| removeDcOffset()
+			| addOffset(offset);
 
 		// Disable PocketSphinx' logging
 		err_set_logfp(nullptr);
