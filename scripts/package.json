@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "canvas": "^2.1.0",
+    "del": "^3.0.0",
+    "replace-ext": "^1.0.0"
+  }
+}
