@@ -1,5 +1,3 @@
-#include <stdio.h>
-#include <string.h>
 #include <array>
 #include "audio/audioFileReading.h"
 #include "audio/processing.h"
@@ -14,32 +12,35 @@ extern "C" {
 #include "cmdln_macro.h"
 }
 
-#include <math.h>
-
-#define EPSILON 0.01
-#define TEST_ASSERT(x) if (!(x)) { fprintf(stderr, "FAIL: %s\n", #x); exit(1); }
-#define TEST_EQUAL(a,b) TEST_ASSERT((a) == (b))
-#define TEST_EQUAL_FLOAT(a,b) TEST_ASSERT(fabs((a) - (b)) < EPSILON)
-#define LOG_EPSILON 20
-#define TEST_EQUAL_LOG(a,b) TEST_ASSERT(abs((a) - (b)) < LOG_EPSILON)
-
+// Make sure PocketSphinx is configured as expected
 static_assert(
 	std::is_same<mfcc_t, float>::value,
 	"Expected mfcc_t to be float. Check FIXED_POINT preprocessor variable."
 );
 typedef float Mfcc;
-typedef std::array<Mfcc, DEFAULT_NUM_CEPSTRA> Mfc;
+constexpr int mfcSize = 13;
 static_assert(
-	sizeof(Mfc) == DEFAULT_NUM_CEPSTRA * sizeof(float),
+	DEFAULT_NUM_CEPSTRA == mfcSize,
+	"Unexpected DEFAULT_NUM_CEPSTRA value."
+);
+typedef std::array<Mfcc, mfcSize> Mfc;
+static_assert(
+	sizeof(Mfc) == mfcSize * sizeof(float),
 	"Unexpected std::array implementation."
 );
 
 int main(int argc, char* argv[]) {
 	try {
-		if (argc != 2) throw std::runtime_error("File name must be specified as single argument.");
+		if (argc != 2) {
+			throw std::runtime_error("File name must be specified as single argument.");
+		}
+
 		const auto audioFile = createAudioFileClip(argv[1]) | resample(16000) | removeDcOffset();;
 
+		// Disable PocketSphinx' logging
 		err_set_logfp(nullptr);
+
+		// Initialize feature extractor
 		const arg_t parameterDefinitions[] = {
 			waveform_to_cepstral_command_line_macro(),
 			CMDLN_EMPTY_OPTION
@@ -52,6 +53,7 @@ int main(int argc, char* argv[]) {
 		if (!config) throw std::runtime_error("Error initializing configuration.");
 		fe_t* fe = fe_init_auto_r(config);
 
+		// Process audio stream
 		fe_start_stream(fe);
 		fe_start_utt(fe);
 		std::vector<Mfc> mfcs(100 * audioFile->size() / audioFile->getSampleRate());
@@ -80,8 +82,11 @@ int main(int argc, char* argv[]) {
 		cmd_ln_free_r(config);
 
 		for (const Mfc& mfc : mfcs) {
-			for (const Mfcc mfcc : mfc) {
-				std::cout << mfcc << '\t';
+			for (int i = 0; i < mfcSize; ++i) {
+				std::cout << mfc[i];
+				if (i <mfcSize - 1) {
+					std::cout << '\t';
+				}
 			}
 			std::cout << std::endl;
 		}
