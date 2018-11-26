@@ -317,6 +317,8 @@ add_library(rhubarb-audio
 	src/audio/DcOffset.cpp
 	src/audio/DcOffset.h
 	src/audio/ioTools.h
+	src/audio/Offset.cpp
+	src/audio/Offset.h
 	src/audio/OggVorbisFileReader.cpp
 	src/audio/OggVorbisFileReader.h
 	src/audio/processing.cpp
